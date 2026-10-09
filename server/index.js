@@ -8,6 +8,7 @@ import express from 'express';
 import { aiRouter } from './ai-routes.js';
 import { MODELS } from './claude.js';
 import { attachSttRelay, isSttConfigured } from './stt-relay.js';
+import { createDataRouter } from './data-store.js';
 
 const isProd = process.argv.includes('--prod');
 const port = Number(process.env.PORT) || 5173;
@@ -15,6 +16,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const app = express();
 const httpServer = createServer(app);
+
+// 登録データの保存は容量の上限が違うため、共通の JSON 読み取りより先に登録する
+const { router: dataRouter, file: dataFile } = createDataRouter(root);
+app.use('/api/data', dataRouter);
 
 app.use(express.json({ limit: '2mb' }));
 
@@ -43,6 +48,7 @@ if (isProd) {
 // マイク・画面共有はセキュアな環境（localhost か HTTPS）でしか使えないため localhost で待ち受ける
 httpServer.listen(port, '127.0.0.1', () => {
   console.log(`Aide: http://localhost:${port}`);
+  console.log(`データの保存先: ${dataFile}`);
   if (!isSttConfigured()) {
     console.log('※ DEEPGRAM_API_KEY が未設定のため、面接官の声（ヘッドホン使用時）の文字起こしは使えません。');
   }

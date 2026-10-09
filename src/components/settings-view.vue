@@ -202,7 +202,20 @@ function deleteOldRecords() {
           <button class="btn btn-small btn-danger" @click="deleteOldRecords">古い記録を半分削除</button>
         </div>
       </div>
-      <p class="muted small">データはこのブラウザの中だけに保存されます。ブラウザのサイトデータを消去すると失われます。</p>
+      <p class="muted small">上の容量は、このブラウザの中に置いている控えの使用量です。</p>
+    </div>
+
+    <div class="card block">
+      <h2>ほかのパソコンとの同期</h2>
+      <p class="muted small">
+        データはサーバーのファイルにも自動で保存されます。このファイルが OneDrive で同期されるので、ほかのパソコンで Aide を起動しても同じデータが使えます。
+        同時に2台で編集すると、同じ項目は後から更新した方が残ります。
+      </p>
+      <p v-if="store.sync.error" class="notice notice-error">{{ store.sync.error }}</p>
+      <ul v-else class="sync-info small">
+        <li>保存先：<code>{{ store.sync.file || '読み込み中…' }}</code></li>
+        <li>最終保存：{{ store.sync.savedAt ? formatDateTime(store.sync.savedAt) : 'まだ保存していません' }}</li>
+      </ul>
     </div>
 
     <div class="card block">
@@ -261,6 +274,8 @@ legend { font-weight: 600; margin-bottom: 4px; }
 .usage-bar span { display: block; height: 100%; background: var(--accent); }
 .usage-bar span.high { background: var(--danger); }
 .keys { margin: 0; padding-left: 1.2em; }
+.sync-info { margin: 0; padding-left: 1.2em; }
+.sync-info code { word-break: break-all; }
 kbd {
   border: 1px solid var(--border);
   border-radius: 4px;

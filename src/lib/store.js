@@ -33,6 +33,8 @@ export const store = reactive({
   records: read('records', []),
   settings: { ...DEFAULT_SETTINGS, ...read('settings', {}) },
   saveError: '',
+  // サーバーのデータファイルとの同期状態（sync.js が更新する）
+  sync: { file: '', savedAt: null, error: '' },
 });
 
 for (const key of STORAGE_KEYS) {

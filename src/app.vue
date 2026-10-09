@@ -57,6 +57,7 @@ watchEffect(() => {
     </header>
 
     <p v-if="store.saveError && !liveRunning" class="notice notice-error save-error">{{ store.saveError }}</p>
+    <p v-if="store.sync.error && !liveRunning" class="notice notice-error save-error">{{ store.sync.error }}</p>
 
     <main class="main">
       <PrepareView v-if="current === 'prepare'" />
