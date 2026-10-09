@@ -5,7 +5,8 @@ const PREFIX = 'aide:';
 export const STORAGE_KEYS = ['companies', 'episodes', 'records', 'settings'];
 export const STORAGE_LIMIT_BYTES = 5 * 1024 * 1024;
 
-export const DEFAULT_SETTINGS = { theme: 'system', fontScale: 'normal' };
+// categoryOrder：エピソードの分類の表示順（分類名の配列）
+export const DEFAULT_SETTINGS = { theme: 'system', fontScale: 'normal', categoryOrder: [] };
 
 // localStorage が使えない環境（プライベートブラウズ等）でも落ちないように包む
 function read(key, fallback) {
@@ -73,4 +74,45 @@ export function touch(item) {
 
 export function findCompany(id) {
   return store.companies.find((c) => c.id === id) ?? null;
+}
+
+// エピソードを分類ごとにまとめる
+// 並び順：設定で決めた順 → 順番未設定の分類は五十音順 → 未分類は最後
+export function groupEpisodes(episodes) {
+  const groups = new Map();
+  for (const e of episodes) {
+    const name = e.category?.trim() ?? '';
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(e);
+  }
+  const order = store.settings.categoryOrder ?? [];
+  const rank = (name) => {
+    const i = order.indexOf(name);
+    return i < 0 ? Infinity : i;
+  };
+  return [...groups.entries()]
+    .map(([name, list]) => ({ name, episodes: list }))
+    .sort((a, b) => {
+      if (!a.name) return 1;
+      if (!b.name) return -1;
+      // 両方とも順番未設定なら差が NaN になり、五十音順で比べる
+      return rank(a.name) - rank(b.name) || a.name.localeCompare(b.name, 'ja');
+    });
+}
+
+// 分類の表示順を1つ上（delta = -1）または下（delta = 1）に動かす
+export function moveCategory(name, delta) {
+  const names = episodeCategories();
+  const i = names.indexOf(name);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= names.length) return;
+  [names[i], names[j]] = [names[j], names[i]];
+  store.settings.categoryOrder = names;
+}
+
+// 登録済みの分類名の一覧（入力候補に使う）
+export function episodeCategories() {
+  return groupEpisodes(store.episodes)
+    .map((g) => g.name)
+    .filter(Boolean);
 }

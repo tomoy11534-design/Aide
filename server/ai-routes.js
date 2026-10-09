@@ -114,7 +114,7 @@ aiRouter.post(
 // ---- 本番モード：いま聞かれている質問の要約と、関連エピソード・回答済み逆質問の判定 ----
 aiRouter.post(
   '/live/analyze',
-  handle(async ({ utterances = [], episodes = [], reverseQuestions = [] }) => {
+  handle(async ({ utterances = [], episodes = [], plannedQuestions = [], reverseQuestions = [] }) => {
     const log = utterances
       .slice(-12)
       .map((u) => formatUtterance(u, 400))
@@ -122,6 +122,10 @@ aiRouter.post(
     const episodeList = episodes
       .slice(0, 50)
       .map((e) => `- id=${e.id}：${clip(e.title, 80)}${e.tags?.length ? `（${e.tags.slice(0, 5).join('、')}）` : ''}`)
+      .join('\n');
+    const plannedList = plannedQuestions
+      .slice(0, 30)
+      .map((q) => `- id=${q.id}：${clip(q.text, 200)}`)
       .join('\n');
     const reverseList = reverseQuestions
       .slice(0, 30)
@@ -133,23 +137,26 @@ aiRouter.post(
       effort: 'low',
       maxTokens: 4000,
       system:
-        '面接を受けている本人の手元メモを整理するアシスタントです。面接の文字起こし（誤変換を含む）を読み、次の3つだけを返します。' +
+        '面接を受けている本人の手元メモを整理するアシスタントです。面接の文字起こし（誤変換を含む）を読み、次の4つだけを返します。' +
         '1) question：面接官がいま聞いている質問を、本人が一目で分かる25字以内の短い日本語にしたもの。質問が読み取れなければ空文字。' +
-        '2) episodeIds：その質問に関係する、本人が事前に登録したエピソードの id（関連の強い順に最大3件、なければ空配列）。' +
-        '3) answeredReverseIds：本人が用意した逆質問のうち、会話の中ですでに答えが出た、または質問済みのものの id。' +
+        '2) plannedQuestionId：本人が事前に用意した想定質問のうち、いま聞かれている質問と同じ趣旨のものの id。言い回しが違っても趣旨が同じなら一致とみなす。該当がなければ空文字。' +
+        '3) episodeIds：その質問に関係する、本人が事前に登録したエピソードの id（関連の強い順に最大3件、なければ空配列）。' +
+        '4) answeredReverseIds：本人が用意した逆質問のうち、会話の中ですでに答えが出た、または質問済みのものの id。' +
         '回答例・回答文・話す内容の提案は絶対に生成しないでください。',
       user:
         `文字起こし（新しいものが下）：\n${log || '（なし）'}\n\n` +
+        `用意した想定質問：\n${plannedList || '（なし）'}\n\n` +
         `登録済みエピソード：\n${episodeList || '（なし）'}\n\n` +
         `用意した逆質問：\n${reverseList || '（なし）'}`,
       schema: {
         type: 'object',
         properties: {
           question: { type: 'string' },
+          plannedQuestionId: { type: 'string' },
           episodeIds: { type: 'array', items: { type: 'string' } },
           answeredReverseIds: { type: 'array', items: { type: 'string' } },
         },
-        required: ['question', 'episodeIds', 'answeredReverseIds'],
+        required: ['question', 'plannedQuestionId', 'episodeIds', 'answeredReverseIds'],
         additionalProperties: false,
       },
     });

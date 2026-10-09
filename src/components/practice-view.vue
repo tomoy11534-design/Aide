@@ -216,10 +216,10 @@ const axes = [
 
     <details v-if="history.length" class="card history">
       <summary>これまでの質疑（{{ history.length }}問）</summary>
-      <ol>
-        <li v-for="(h, i) in history" :key="i">
-          <p><strong>Q.</strong> {{ h.question }}</p>
-          <p class="muted"><strong>A.</strong> {{ h.answer }}</p>
+      <ol class="qa-list">
+        <li v-for="(h, i) in history" :key="i" class="qa-item">
+          <p class="qa-q"><span class="qa-mark">Q{{ i + 1 }}</span><span>{{ h.question }}</span></p>
+          <p class="qa-a"><span class="qa-mark">A</span><span>{{ h.answer }}</span></p>
         </li>
       </ol>
     </details>
@@ -271,6 +271,5 @@ const axes = [
 .points p { margin: 0 0 6px; }
 .tip { white-space: pre-wrap; }
 .history summary { cursor: pointer; font-weight: 600; min-height: 32px; }
-.history li { margin-bottom: 8px; }
-.history p { margin: 0; }
+.history .qa-list { margin-top: 10px; }
 </style>

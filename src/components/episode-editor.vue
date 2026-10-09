@@ -1,5 +1,6 @@
 <script setup>
-import { touch } from '../lib/store.js';
+import { computed } from 'vue';
+import { touch, episodeCategories } from '../lib/store.js';
 
 const props = defineProps({ episode: { type: Object, required: true } });
 const emit = defineEmits(['remove']);
@@ -20,6 +21,8 @@ function setTags(value) {
   );
 }
 
+const categories = computed(episodeCategories);
+
 function confirmRemove() {
   if (confirm(`「${props.episode.title}」を削除しますか？`)) emit('remove');
 }
@@ -30,6 +33,20 @@ function confirmRemove() {
     <label class="field">
       <span>タイトル（本番中に一目で思い出せる短い名前）</span>
       <input class="input" :value="episode.title" placeholder="例：学園祭の来場者数を1.5倍にした話" @input="set('title', $event.target.value)" />
+    </label>
+    <!-- 入力中に一覧の並びが動かないよう、確定時（@change）に保存する -->
+    <label class="field">
+      <span>分類（一覧をこの名前ごとにまとめます。既存の分類は候補から選べます）</span>
+      <input
+        class="input"
+        list="episode-categories"
+        :value="episode.category ?? ''"
+        placeholder="例：AI駆動開発"
+        @change="set('category', $event.target.value.trim())"
+      />
+      <datalist id="episode-categories">
+        <option v-for="c in categories" :key="c" :value="c" />
+      </datalist>
     </label>
     <label class="field">
       <span>タグ（読点・スペース区切り）</span>

@@ -1,11 +1,15 @@
 <script setup>
-import { ref } from 'vue';
-import { store, newId, touch } from '../lib/store.js';
+import { ref, computed } from 'vue';
+import { store, newId, touch, groupEpisodes } from '../lib/store.js';
 
 const props = defineProps({ company: { type: Object, required: true } });
 const emit = defineEmits(['remove']);
 
 const STAGES = ['カジュアル面談', '一次面接', '二次面接', '三次面接', '最終面接', 'その他'];
+
+// エピソードの選択肢を分類ごとにまとめる。分類が1つも付いていなければ見出しは出さない
+const episodeGroups = computed(() => groupEpisodes(store.episodes));
+const hasCategories = computed(() => episodeGroups.value.some((g) => g.name));
 
 const newQuestion = ref('');
 const newReverse = ref('');
@@ -19,7 +23,7 @@ function set(field, value) {
 function addQuestion() {
   const text = newQuestion.value.trim();
   if (!text) return;
-  props.company.questions.push({ id: newId(), text, episodeIds: [] });
+  props.company.questions.push({ id: newId(), text, episodeIds: [], answerNotes: '' });
   newQuestion.value = '';
   touch(props.company);
 }
@@ -34,6 +38,11 @@ function toggleEpisode(question, episodeId) {
 
 function updateItem(item, value) {
   item.text = value;
+  touch(props.company);
+}
+
+function updateNotes(question, value) {
+  question.answerNotes = value;
   touch(props.company);
 }
 
@@ -114,25 +123,40 @@ function confirmRemove() {
     <!-- 想定質問 -->
     <div class="card">
       <h3>想定質問と使うエピソード</h3>
-      <p class="muted small">聞かれそうな質問と、答えに使うエピソードを紐づけておくと、練習・本番で参照しやすくなります。</p>
+      <p class="muted small">聞かれそうな質問と、答えに使うエピソード・回答の要点を登録しておくと、本番でその質問が聞かれたときに表示されます。</p>
       <ul class="items">
         <li v-for="(q, i) in company.questions" :key="q.id" class="question">
           <div class="item">
             <input class="input" :value="q.text" :aria-label="`想定質問 ${i + 1}`" @input="updateItem(q, $event.target.value)" />
             <button class="btn btn-small btn-ghost" aria-label="削除" @click="removeItem('questions', q.id)">✕</button>
           </div>
-          <div v-if="store.episodes.length" class="chips">
-            <button
-              v-for="e in store.episodes"
-              :key="e.id"
-              class="chip"
-              :class="{ on: q.episodeIds.includes(e.id) }"
-              :aria-pressed="q.episodeIds.includes(e.id)"
-              @click="toggleEpisode(q, e.id)"
-            >
-              {{ q.episodeIds.includes(e.id) ? '✓ ' : '' }}{{ e.title }}
-            </button>
+          <div v-if="store.episodes.length" class="chip-groups">
+            <div v-for="g in episodeGroups" :key="g.name" class="chip-group">
+              <span v-if="hasCategories" class="group-label">{{ g.name || '未分類' }}</span>
+              <div class="chips">
+                <button
+                  v-for="e in g.episodes"
+                  :key="e.id"
+                  class="chip"
+                  :class="{ on: q.episodeIds.includes(e.id) }"
+                  :aria-pressed="q.episodeIds.includes(e.id)"
+                  @click="toggleEpisode(q, e.id)"
+                >
+                  {{ q.episodeIds.includes(e.id) ? '✓ ' : '' }}{{ e.title }}
+                </button>
+              </div>
+            </div>
           </div>
+          <label class="field">
+            <span>回答の要点メモ（本番でこの質問が聞かれたときに表示）</span>
+            <textarea
+              class="textarea"
+              rows="3"
+              :value="q.answerNotes ?? ''"
+              placeholder="例：結論 → 〇〇だから／根拠 → △△の経験／入社後 → □□に活かす"
+              @input="updateNotes(q, $event.target.value)"
+            />
+          </label>
         </li>
       </ul>
       <form class="add-row" @submit.prevent="addQuestion">
@@ -174,6 +198,9 @@ h3 { font-size: 1.05em; margin-bottom: 4px; }
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
 }
+.chip-groups { display: grid; gap: 6px; }
+.chip-group { display: grid; gap: 4px; }
+.group-label { font-size: 0.8em; font-weight: 700; color: var(--text-sub); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   min-height: 36px;

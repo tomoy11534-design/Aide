@@ -182,6 +182,45 @@ h1, h2, h3 {
   line-height: 1.8;
 }
 
+/* 質問と回答の一覧（練習の履歴・振り返りのまとめで共通） */
+.qa-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+.qa-item { display: grid; gap: 6px; }
+.qa-q,
+.qa-a {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-left: 4px solid;
+}
+/* 質問は青、回答は灰色で一段下げて、ひと目で区別できるようにする */
+.qa-q {
+  background: var(--accent-weak);
+  border-left-color: var(--accent);
+  font-weight: 700;
+}
+.qa-a {
+  margin-left: 20px;
+  background: var(--surface-2);
+  border-left-color: var(--text-sub);
+  white-space: pre-wrap;
+}
+.qa-mark {
+  flex-shrink: 0;
+  font-size: 0.85em;
+  font-weight: 800;
+  color: var(--accent);
+}
+.qa-a .qa-mark { color: var(--text-sub); }
+
 .empty {
   padding: 24px;
   text-align: center;

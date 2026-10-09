@@ -136,10 +136,10 @@ const SPEAKER = { interviewer: '面接官', self: '自分' };
         <p>{{ record.summary.overview }}</p>
         <template v-if="record.summary.qa.length">
           <h4>聞かれた質問と回答の要約</h4>
-          <ol class="qa">
-            <li v-for="(item, i) in record.summary.qa" :key="i">
-              <strong>{{ item.question }}</strong>
-              <p class="muted">{{ item.answerSummary }}</p>
+          <ol class="qa-list">
+            <li v-for="(item, i) in record.summary.qa" :key="i" class="qa-item">
+              <p class="qa-q"><span class="qa-mark">Q{{ i + 1 }}</span><span>{{ item.question }}</span></p>
+              <p class="qa-a"><span class="qa-mark">A</span><span>{{ item.answerSummary }}</span></p>
             </li>
           </ol>
         </template>
@@ -179,7 +179,7 @@ const SPEAKER = { interviewer: '面接官', self: '自分' };
         <summary>文字起こし（{{ record.utterances.length }}件）</summary>
         <p v-if="!record.utterances.length" class="muted small">文字起こしはありません</p>
         <ul class="transcript">
-          <li v-for="(u, i) in record.utterances" :key="i">
+          <li v-for="(u, i) in record.utterances" :key="i" :class="u.speaker">
             <span class="time">{{ formatOffset(u.at) }}</span>
             <span v-if="SPEAKER[u.speaker]" class="who" :class="u.speaker">{{ SPEAKER[u.speaker] }}</span>
             <span>{{ u.text }}</span>
@@ -226,9 +226,9 @@ const SPEAKER = { interviewer: '面接官', self: '自分' };
 .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 h3 { font-size: 1.05em; margin-bottom: 8px; }
 h4 { font-size: 0.95em; margin: 12px 0 4px; }
-.summary p { margin: 0 0 8px; }
-.qa { padding-left: 1.4em; margin: 0; }
-.qa p { margin: 2px 0 8px; }
+/* 共通の .qa-list の余白を崩さないよう、直下の段落だけに限定する */
+.summary > p { margin: 0 0 8px; }
+.summary .qa-list { margin-bottom: 4px; }
 .three {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -245,7 +245,17 @@ h4 { font-size: 0.95em; margin: 12px 0 4px; }
 .memo { display: grid; gap: 4px; }
 details summary { cursor: pointer; font-weight: 600; min-height: 32px; }
 .transcript { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; }
-.transcript li { display: flex; gap: 8px; align-items: baseline; }
+.transcript li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border-left: 4px solid transparent;
+}
+/* 面接官は青、自分は灰色で一段下げて、質問と回答を見分けやすくする */
+.transcript li.interviewer { background: var(--accent-weak); border-left-color: var(--accent); }
+.transcript li.self { margin-left: 24px; background: var(--surface-2); border-left-color: var(--text-sub); }
 .time { font-variant-numeric: tabular-nums; color: var(--text-sub); font-size: 0.85em; flex-shrink: 0; }
 .who { font-weight: 700; font-size: 0.85em; flex-shrink: 0; color: var(--text-sub); }
 .who.interviewer { color: var(--accent); }

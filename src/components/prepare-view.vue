@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { store, stamp } from '../lib/store.js';
+import { store, stamp, groupEpisodes, moveCategory } from '../lib/store.js';
 import CompanyEditor from './company-editor.vue';
 import EpisodeEditor from './episode-editor.vue';
 
@@ -39,8 +39,14 @@ function removeCompany(id) {
   selectedCompanyId.value = store.companies[0]?.id ?? null;
 }
 
+// 分類ごとのまとまり。分類が1つも付いていなければ見出しは出さない
+const episodeGroups = computed(() => groupEpisodes(store.episodes));
+const hasCategories = computed(() => episodeGroups.value.some((g) => g.name));
+// 名前のある分類の数（未分類は常に最後で、並び替えの対象外）
+const namedGroupCount = computed(() => episodeGroups.value.filter((g) => g.name).length);
+
 function addEpisode() {
-  const episode = stamp({ title: '新しいエピソード', body: '', tags: [] });
+  const episode = stamp({ title: '新しいエピソード', category: '', body: '', tags: [] });
   store.episodes.push(episode);
   selectedEpisodeId.value = episode.id;
 }
@@ -110,16 +116,35 @@ function formatDate(value) {
       <aside class="list">
         <button class="btn btn-primary add" @click="addEpisode">＋ エピソードを追加</button>
         <p v-if="store.episodes.length === 0" class="empty small">自己PR・ガクチカ・挫折経験など、話せるエピソードを登録しましょう</p>
-        <button
-          v-for="e in store.episodes"
-          :key="e.id"
-          class="list-item"
-          :class="{ active: e.id === selectedEpisodeId }"
-          @click="selectedEpisodeId = e.id"
-        >
-          <strong>{{ e.title || '（タイトル未設定）' }}</strong>
-          <span v-if="e.tags.length" class="muted small">{{ e.tags.join('・') }}</span>
-        </button>
+        <template v-for="(g, i) in episodeGroups" :key="g.name">
+          <div v-if="hasCategories" class="group-head">
+            <h3 class="group-label">{{ g.name || '未分類' }}（{{ g.episodes.length }}）</h3>
+            <span v-if="g.name" class="group-move">
+              <button
+                class="btn btn-small btn-ghost"
+                :disabled="i === 0"
+                :aria-label="`分類「${g.name}」を上へ`"
+                @click="moveCategory(g.name, -1)"
+              >↑</button>
+              <button
+                class="btn btn-small btn-ghost"
+                :disabled="i === namedGroupCount - 1"
+                :aria-label="`分類「${g.name}」を下へ`"
+                @click="moveCategory(g.name, 1)"
+              >↓</button>
+            </span>
+          </div>
+          <button
+            v-for="e in g.episodes"
+            :key="e.id"
+            class="list-item"
+            :class="{ active: e.id === selectedEpisodeId }"
+            @click="selectedEpisodeId = e.id"
+          >
+            <strong>{{ e.title || '（タイトル未設定）' }}</strong>
+            <span v-if="e.tags.length" class="muted small">{{ e.tags.join('・') }}</span>
+          </button>
+        </template>
       </aside>
       <EpisodeEditor
         v-if="selectedEpisode"
@@ -152,6 +177,22 @@ function formatDate(value) {
 }
 
 .add { width: 100%; margin-bottom: 4px; }
+
+/* 分類の見出しと並び替えボタン */
+.group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 10px;
+}
+.group-label {
+  margin: 0;
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+.group-move { display: inline-flex; gap: 2px; }
 
 .list-item {
   display: grid;

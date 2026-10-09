@@ -23,6 +23,8 @@ const SILENCE_WARN_MS = { interviewer: 30000, mic: 45000 };
 
 const company = findCompany(props.config.companyId);
 const reverseQuestions = company ? company.reverseQuestions.map((q) => ({ ...q })) : [];
+// 準備で登録した想定質問（文面が空のものは除く）
+const plannedQuestions = company ? (company.questions ?? []).filter((q) => q.text.trim()) : [];
 
 // ---- 状態 ----
 const audioMode = ref(props.config.audioMode);
@@ -42,6 +44,7 @@ const suggestedAnswered = reactive(new Set());
 const currentQuestion = ref('');
 const askedQuestions = [];
 const episodeIds = ref([]);
+const matchedPlanned = ref(null);
 const flash = ref(false);
 const analyzing = ref(false);
 const analyzeCount = ref(0);
@@ -173,6 +176,7 @@ async function runAnalyze() {
     const res = await postApi('/live/analyze', {
       utterances: utterances.value.slice(-12).map(({ speaker, text }) => ({ speaker, text })),
       episodes: store.episodes.map((e) => ({ id: e.id, title: e.title, tags: e.tags })),
+      plannedQuestions: plannedQuestions.map(({ id, text }) => ({ id, text })),
       reverseQuestions: reverseQuestions.map(({ id, text }) => ({ id, text })),
     });
     const question = res.question.trim();
@@ -183,7 +187,11 @@ async function runAnalyze() {
     }
     if (question) {
       const known = new Set(store.episodes.map((e) => e.id));
-      episodeIds.value = res.episodeIds.filter((id) => known.has(id)).slice(0, 3);
+      // 想定質問に一致したら、準備で紐づけたエピソードを先に並べ、AI の候補で残りを埋める
+      const planned = plannedQuestions.find((q) => q.id === res.plannedQuestionId) ?? null;
+      matchedPlanned.value = planned;
+      const ids = [...(planned?.episodeIds ?? []), ...res.episodeIds];
+      episodeIds.value = [...new Set(ids)].filter((id) => known.has(id)).slice(0, 3);
     }
     for (const id of res.answeredReverseIds) suggestedAnswered.add(id);
   } catch (error) {
@@ -208,6 +216,18 @@ function triggerFlash() {
 const relatedEpisodes = computed(() =>
   episodeIds.value.map((id) => store.episodes.find((e) => e.id === id)).filter(Boolean),
 );
+
+// 一致した想定質問に、本人が準備で書いた回答メモ。改行ごとに1項目の箇条書きにする（先頭の「・」「-」等は除く）
+const noteLines = computed(() =>
+  (matchedPlanned.value?.answerNotes ?? '')
+    .split('\n')
+    .map((line) => line.replace(/^\s*[・\-*●○■□◆◇]\s*/, '').trim())
+    .filter(Boolean),
+);
+
+function isPrepared(episode) {
+  return matchedPlanned.value?.episodeIds.includes(episode.id) ?? false;
+}
 
 // ---- 逆質問 ----
 function toggleChecked(id) {
@@ -398,13 +418,26 @@ onBeforeUnmount(() => {
       <p v-else class="question-text placeholder">質問を待っています</p>
     </section>
 
-    <!-- ② 関連エピソード -->
-    <section class="episodes">
-      <h2 class="area-label">使えそうなエピソード</h2>
+    <!-- ② 準備したこと（回答メモと関連エピソードを1つの枠にまとめる） -->
+    <section class="prepared-box">
+      <h2 class="area-label">
+        準備したこと
+        <span v-if="matchedPlanned" class="planned-from">想定質問「{{ matchedPlanned.text }}」</span>
+      </h2>
+      <div v-if="noteLines.length" class="notes">
+        <h3 class="sub-label">回答メモ</h3>
+        <ul class="note-list">
+          <li v-for="(line, i) in noteLines" :key="i">{{ line }}</li>
+        </ul>
+      </div>
+      <h3 v-if="noteLines.length" class="sub-label">エピソード</h3>
       <ul v-if="relatedEpisodes.length" class="episode-list">
-        <li v-for="e in relatedEpisodes" :key="e.id" class="episode">
-          <span class="episode-title">{{ e.title }}</span>
-          <span v-if="e.tags.length" class="episode-tags">{{ e.tags.slice(0, 3).join('・') }}</span>
+        <li v-for="e in relatedEpisodes" :key="e.id" class="episode" :class="{ 'is-prepared': isPrepared(e) }">
+          <span class="episode-mark" aria-hidden="true">{{ isPrepared(e) ? '★' : '・' }}</span>
+          <span class="episode-main">
+            <span class="episode-title">{{ e.title }}</span>
+            <span v-if="e.body?.trim()" class="episode-body">{{ e.body.trim() }}</span>
+          </span>
         </li>
       </ul>
       <p v-else class="muted none">{{ store.episodes.length ? '質問に合うエピソードがここに出ます' : 'エピソードが未登録です' }}</p>
@@ -576,26 +609,72 @@ onBeforeUnmount(() => {
 .placeholder { color: var(--text-sub); font-weight: 600; }
 .thinking { font-weight: 600; color: var(--accent); margin-left: 8px; }
 
-/* ---- ② エピソード ---- */
-/* エピソード1行分（見出し＋タイトル＋タグ）の高さを確保し、表示の有無でずれないようにする */
-.episodes { min-height: calc(20px + 66px * var(--scale)); }
+/* ---- ② 準備したこと ---- */
+/* 見出し＋エピソード1件分の高さを確保して表示の有無でずれないようにし、
+   多いときは枠の中だけスクロールさせて、下の逆質問・メモを押し出しすぎない */
+.prepared-box {
+  min-height: calc(20px + 80px * var(--scale));
+  max-height: 42vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--ok);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+}
+/* 想定質問が長くても見出しを1行に保つ */
+.prepared-box .area-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-label {
+  font-size: calc(12px * var(--scale));
+  font-weight: 700;
+  color: var(--text-sub);
+  margin: 2px 0;
+}
+.notes {
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.note-list {
+  margin: 0;
+  padding-left: 1.3em;
+  display: grid;
+  gap: 2px;
+  font-size: calc(18px * var(--scale));
+  font-weight: 600;
+  line-height: 1.5;
+}
+.note-list li::marker { color: var(--ok); }
 .episode-list {
   list-style: none;
   padding: 0;
   margin: 0;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.episode {
   display: grid;
-  padding: 8px 14px;
-  border-radius: var(--radius);
-  background: var(--accent-weak);
-  border-left: 4px solid var(--accent);
+  gap: 6px;
 }
+.episode { display: flex; gap: 8px; align-items: baseline; }
+.episode-mark {
+  flex-shrink: 0;
+  width: 1em;
+  font-size: calc(18px * var(--scale));
+  color: var(--text-sub);
+}
+.episode.is-prepared .episode-mark { color: var(--ok); }
+.episode-main { display: grid; min-width: 0; }
 .episode-title { font-size: calc(20px * var(--scale)); font-weight: 700; line-height: 1.4; }
-.episode-tags { font-size: calc(13px * var(--scale)); color: var(--text-sub); }
+/* 本文は改行を保って全文表示する（長いときは枠の中でスクロール） */
+.episode-body {
+  font-size: calc(16px * var(--scale));
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+/* 一致した想定質問は見出しの横に小さく出し、目線を奪わないようにする */
+.planned-from {
+  margin-left: 8px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0;
+}
 .none { margin: 0; font-size: calc(16px * var(--scale)); }
 
 /* ---- ③ 逆質問・メモ ---- */
@@ -683,13 +762,25 @@ onBeforeUnmount(() => {
 .transcript-head { display: flex; justify-content: space-between; align-items: center; }
 .transcript-head .area-label { margin: 0; }
 .transcript-body {
-  max-height: calc(16px * var(--scale) * 1.5 * 3 + 4px);
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  /* 3行分（行の高さ＋上下の余白）＋行間 */
+  max-height: calc((16px * var(--scale) * 1.5 + 4px) * 3 + 4px * 2 + 4px);
   overflow-y: auto;
   font-size: calc(16px * var(--scale));
   line-height: 1.5;
 }
 .transcript.open .transcript-body { max-height: 28vh; }
-.line { margin: 0; }
+.line {
+  margin: 0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border-left: 4px solid transparent;
+}
+/* 面接官は青、自分は灰色で一段下げて、質問と回答を見分けやすくする */
+.line.interviewer { background: var(--accent-weak); border-left-color: var(--accent); }
+.line.self { margin-left: 20px; background: var(--surface-2); border-left-color: var(--text-sub); }
 .who {
   display: inline-block;
   min-width: 3.5em;
